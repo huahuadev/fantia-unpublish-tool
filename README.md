@@ -2,8 +2,6 @@
 
 Fantia の自分の投稿をまとめて **非公開** にしたり、 **公開に戻したり** できるデスクトップツールです。
 
-<video src="doc/video.mp4" controls loop autoplay muted></video>
-
 ## ダウンロード
 
 [Releases ページ](../../releases) から、自分の OS のファイルを落としてください。
