@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fantia Unpublish Tool</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Fantia 一括非公開ツール</h1>
+      <p class="sub">自分の投稿を一括で非公開化／再公開できます</p>
+    </header>
+
+    <section class="card" id="loginCard">
+      <h2>ステップ 1: ログイン</h2>
+      <p class="hint">
+        右側のブラウザで Fantia にログインしてから、下の操作を行ってください。
+      </p>
+      <div class="row">
+        <button id="btnNavLogin" class="primary">
+          Fantia のログイン画面を開く
+        </button>
+        <button id="btnFocusFantia" class="secondary">
+          Fantia ウィンドウを前面に
+        </button>
+      </div>
+    </section>
+
+    <section class="card" id="actionCard">
+      <h2>ステップ 2: 実行</h2>
+      <div class="row">
+        <label>1件ごとの待機時間</label>
+        <div class="rate">
+          <input
+            type="number"
+            id="rateInput"
+            min="0"
+            max="60"
+            step="1"
+            value="3"
+          />
+          <span>秒</span>
+        </div>
+      </div>
+      <p class="hint">
+        Fantia への負荷を避けるための間隔です。
+      </p>
+
+      <div class="row buttons">
+        <button id="btnUnpublish" class="danger">
+          すべての投稿を非公開にする
+        </button>
+        <button id="btnRepublish" class="primary" disabled>
+          このツールで非公開にしたものを公開する
+          <span class="badge" id="historyBadge">0</span>
+        </button>
+      </div>
+      <p class="hint">
+        「このツールで非公開にしたものを公開する」は本ツールで非公開化した投稿のみを対象にします。
+        元々非公開だった投稿は影響しません。
+      </p>
+
+      <div class="row buttons">
+        <button id="btnRepublishAll" class="warning">
+          非公開のものを全部公開する
+        </button>
+      </div>
+      <p class="hint">
+        現在「非公開」状態のすべての投稿を公開に戻します。
+        元々非公開だったものも含めて全部公開されるので注意してください。
+      </p>
+
+      <div class="row">
+        <button id="btnAbort" class="warning" disabled>中断</button>
+        <button id="btnClearHistory" class="secondary">
+          非公開化履歴をクリア
+        </button>
+        <button id="btnExportHistory" class="secondary">
+          履歴を CSV ダウンロード
+        </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>進捗</h2>
+      <div class="progress">
+        <div class="bar"><div id="progressFill"></div></div>
+        <div id="progressText">待機中</div>
+      </div>
+    </section>
+
+    <section class="card logCard">
+      <h2>ログ</h2>
+      <div id="log"></div>
+    </section>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
