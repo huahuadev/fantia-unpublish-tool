@@ -2,8 +2,7 @@
 
 Fantia の自分の投稿をまとめて **非公開** にしたり、 **公開に戻したり** できるデスクトップツールです。
 
-![video](doc/video.mp4)
-
+<video src="doc/video.mp4" controls loop autoplay muted></video>
 
 ## ダウンロード
 
