@@ -148,15 +148,6 @@ async function navToLogin(): Promise<void> {
   }
 }
 
-function focusFantiaWindow(): void {
-  if (!fantiaWindow || fantiaWindow.isDestroyed()) {
-    void openFantiaWindow(FANTIA_LOGIN);
-    return;
-  }
-  fantiaWindow.show();
-  fantiaWindow.focus();
-}
-
 async function openFantiaWindow(initialUrl: string): Promise<void> {
   if (fantiaWindow && !fantiaWindow.isDestroyed()) {
     emit("debug", "Fantia ウィンドウは既に開いています");
@@ -424,10 +415,10 @@ async function runUnpublishAll(rateSeconds: number): Promise<void> {
   try {
     const targets = await collectPostIds(FANTIA_POSTS_LIST_OPEN, "公開中");
     if (!targets.length) {
-      emit(
-        "warn",
-        "公開中の投稿が見つかりませんでした (ログインしていない / 公開中投稿が 0 件)"
-      );
+      const msg =
+        "公開中の投稿が見つかりませんでした。\nFantia にログイン (年齢確認も) しているか、公開中の投稿があるか確認してください。";
+      emit("warn", msg);
+      emitCompleted(msg);
       return;
     }
     emit("info", `対象 (公開中): ${targets.length} 件`);
@@ -464,7 +455,7 @@ async function runUnpublishAll(rateSeconds: number): Promise<void> {
     const summary = `非公開化 ${okCount} 件 / スキップ ${skipCount} 件 / 失敗 ${failCount} 件`;
     emit("success", `完了: ${summary}`);
     emitCompleted(
-      abortRequested ? `中断しました (${summary})` : `非公開化が完了しました\n${summary}`
+      abortRequested ? `中断されました\n${summary}` : `非公開化が完了しました\n${summary}`
     );
   } catch (e) {
     emit("error", `予期しないエラー: ${String((e as Error).message || e)}`);
@@ -490,7 +481,9 @@ async function runRepublishFromHistory(rateSeconds: number): Promise<void> {
     const ids = Array.from(history);
     emit("info", `履歴にある投稿: ${ids.length} 件`);
     if (!ids.length) {
-      emit("warn", "再公開対象がありません (このツールで非公開化した記録なし)");
+      const msg = "再公開対象がありません。\nこのツールで非公開化した記録がありません。";
+      emit("warn", msg);
+      emitCompleted(msg);
       return;
     }
     let okCount = 0;
@@ -528,7 +521,7 @@ async function runRepublishFromHistory(rateSeconds: number): Promise<void> {
     const summary = `公開化 ${okCount} 件 / スキップ ${skipCount} 件 / 失敗 ${failCount} 件`;
     emit("success", `完了: ${summary}`);
     emitCompleted(
-      abortRequested ? `中断しました (${summary})` : `公開化が完了しました\n${summary}`
+      abortRequested ? `中断されました\n${summary}` : `公開化が完了しました\n${summary}`
     );
   } catch (e) {
     emit("error", `予期しないエラー: ${String((e as Error).message || e)}`);
@@ -552,10 +545,10 @@ async function runRepublishAllClosed(rateSeconds: number): Promise<void> {
   try {
     const targets = await collectPostIds(FANTIA_POSTS_LIST_CLOSED, "非公開");
     if (!targets.length) {
-      emit(
-        "warn",
-        "非公開の投稿が見つかりませんでした (ログインしていない / 非公開投稿が 0 件)"
-      );
+      const msg =
+        "非公開の投稿が見つかりませんでした。\nFantia にログイン (年齢確認も) しているか、非公開の投稿があるか確認してください。";
+      emit("warn", msg);
+      emitCompleted(msg);
       return;
     }
     emit("info", `対象 (非公開): ${targets.length} 件`);
@@ -595,7 +588,7 @@ async function runRepublishAllClosed(rateSeconds: number): Promise<void> {
     const summary = `公開化 ${okCount} 件 / スキップ ${skipCount} 件 / 失敗 ${failCount} 件`;
     emit("success", `完了: ${summary}`);
     emitCompleted(
-      abortRequested ? `中断しました (${summary})` : `公開化が完了しました\n${summary}`
+      abortRequested ? `中断されました\n${summary}` : `公開化が完了しました\n${summary}`
     );
   } catch (e) {
     emit("error", `予期しないエラー: ${String((e as Error).message || e)}`);
@@ -652,10 +645,6 @@ function registerIpc(): void {
   });
   ipcMain.handle("nav-login", async () => {
     await navToLogin();
-    return { ok: true };
-  });
-  ipcMain.handle("focus-fantia", async () => {
-    focusFantiaWindow();
     return { ok: true };
   });
   ipcMain.handle("clear-history", async () => {

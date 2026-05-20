@@ -29,7 +29,6 @@ contextBridge.exposeInMainWorld("api", {
   clearHistory: () => ipcRenderer.invoke("clear-history"),
   exportHistoryCsv: () => ipcRenderer.invoke("export-history-csv"),
   navLogin: () => ipcRenderer.invoke("nav-login"),
-  focusFantia: () => ipcRenderer.invoke("focus-fantia"),
 
   onLog: (cb: (e: LogEntry) => void) => {
     ipcRenderer.on("log", (_evt, payload) => cb(payload));

@@ -24,7 +24,6 @@ interface FantiaApi {
   clearHistory: () => Promise<{ ok: boolean }>;
   exportHistoryCsv: () => Promise<{ ok: boolean; reason?: string }>;
   navLogin: () => Promise<{ ok: boolean }>;
-  focusFantia: () => Promise<{ ok: boolean }>;
   onLog: (cb: (e: LogEntry) => void) => void;
   onProgress: (cb: (e: ProgressEntry) => void) => void;
   onState: (cb: (e: StateEntry) => void) => void;
@@ -36,21 +35,60 @@ const $ = <T extends HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
 
 const btnNavLogin = $<HTMLButtonElement>("btnNavLogin");
-const btnFocusFantia = $<HTMLButtonElement>("btnFocusFantia");
 const rateInput = $<HTMLInputElement>("rateInput");
 const btnUnpublish = $<HTMLButtonElement>("btnUnpublish");
 const btnRepublish = $<HTMLButtonElement>("btnRepublish");
 const btnRepublishAll = $<HTMLButtonElement>("btnRepublishAll");
-const btnAbort = $<HTMLButtonElement>("btnAbort");
 const btnClearHistory = $<HTMLButtonElement>("btnClearHistory");
 const btnExportHistory = $<HTMLButtonElement>("btnExportHistory");
 const historyBadge = $<HTMLSpanElement>("historyBadge");
-const progressFill = $<HTMLDivElement>("progressFill");
-const progressText = $<HTMLDivElement>("progressText");
 const logBox = $<HTMLDivElement>("log");
+
+type ActionKind = "unpublish" | "republish" | "republish-all";
+
+interface ActionDef {
+  btn: HTMLButtonElement;
+  defaultLabel: string;
+  withBadge: boolean;
+  start: () => Promise<{ ok: boolean }>;
+  confirmMessage: () => string;
+}
 
 let running = false;
 let historyCount = 0;
+let runningKind: ActionKind | null = null;
+let abortInFlight = false;
+
+const actions: Record<ActionKind, ActionDef> = {
+  unpublish: {
+    btn: btnUnpublish,
+    defaultLabel: "すべての投稿を非公開にする",
+    withBadge: false,
+    start: () => fapi.startUnpublish(getRate()),
+    confirmMessage: () =>
+      "本当に、このファンクラブの全投稿を一括で非公開にしますか？",
+  },
+  republish: {
+    btn: btnRepublish,
+    defaultLabel: "このツールで非公開にしたものを公開する",
+    withBadge: true,
+    start: () => fapi.startRepublish(getRate()),
+    confirmMessage: () =>
+      `このツールで非公開にした ${historyCount} 件を公開状態に戻します。よろしいですか？`,
+  },
+  "republish-all": {
+    btn: btnRepublishAll,
+    defaultLabel: "非公開のものを全部公開する",
+    withBadge: false,
+    start: () => fapi.startRepublishAll(getRate()),
+    confirmMessage: () =>
+      "現在「非公開」状態のすべての投稿を公開に戻します。\n元々非公開だったものも含めて公開されます。よろしいですか？",
+  },
+};
+
+function getRate(): number {
+  return Math.max(0, Math.min(60, Number(rateInput.value) || 0));
+}
 
 function fmtTime(ts: number): string {
   const d = new Date(ts);
@@ -76,15 +114,53 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
+function setButtonLabel(kind: ActionKind, text: string): void {
+  const def = actions[kind];
+  const labelEl = def.btn.querySelector(".action-label") as HTMLElement;
+  if (def.withBadge) {
+    labelEl.innerHTML = `${escapeHtml(text)} <span class="badge" id="historyBadge">${historyCount}</span>`;
+  } else {
+    labelEl.textContent = text;
+  }
+}
+
+function setButtonFill(kind: ActionKind, pct: number): void {
+  const fill = actions[kind].btn.querySelector(".action-fill") as HTMLElement;
+  fill.style.width = `${pct}%`;
+}
+
+function resetButton(kind: ActionKind): void {
+  setButtonFill(kind, 0);
+  setButtonLabel(kind, actions[kind].defaultLabel);
+  actions[kind].btn.classList.remove("running");
+}
+
 function applyUiState(): void {
-  btnUnpublish.disabled = running;
-  btnRepublish.disabled = running || historyCount === 0;
-  btnRepublishAll.disabled = running;
-  btnAbort.disabled = !running;
+  for (const k of Object.keys(actions) as ActionKind[]) {
+    const def = actions[k];
+    const isRunningThis = running && runningKind === k;
+    if (isRunningThis) {
+      def.btn.disabled = false;
+      def.btn.classList.add("running");
+    } else {
+      def.btn.classList.remove("running");
+      let disabled = running;
+      if (k === "republish" && historyCount === 0) disabled = true;
+      def.btn.disabled = disabled;
+      if (!running) {
+        setButtonFill(k, 0);
+        setButtonLabel(k, def.defaultLabel);
+      }
+    }
+  }
   btnClearHistory.disabled = running || historyCount === 0;
   btnExportHistory.disabled = running || historyCount === 0;
   btnNavLogin.disabled = running;
-  historyBadge.textContent = String(historyCount);
+
+  if (actions.republish.withBadge) {
+    const badge = document.getElementById("historyBadge");
+    if (badge) badge.textContent = String(historyCount);
+  }
 }
 
 async function refreshState(): Promise<void> {
@@ -94,38 +170,35 @@ async function refreshState(): Promise<void> {
   applyUiState();
 }
 
+function attachActionHandler(kind: ActionKind): void {
+  const def = actions[kind];
+  def.btn.addEventListener("click", async () => {
+    if (running && runningKind === kind) {
+      if (abortInFlight) return;
+      abortInFlight = true;
+      setButtonLabel(kind, "中断中…");
+      await fapi.abort();
+      return;
+    }
+    if (running) return;
+    const ok = window.confirm(def.confirmMessage());
+    if (!ok) return;
+    runningKind = kind;
+    running = true;
+    abortInFlight = false;
+    setButtonFill(kind, 0);
+    setButtonLabel(kind, "開始中… (もう一度押すと中断)");
+    applyUiState();
+    await def.start();
+  });
+}
+
+attachActionHandler("unpublish");
+attachActionHandler("republish");
+attachActionHandler("republish-all");
+
 btnNavLogin.addEventListener("click", () => {
   void fapi.navLogin();
-});
-btnFocusFantia.addEventListener("click", () => {
-  void fapi.focusFantia();
-});
-btnUnpublish.addEventListener("click", async () => {
-  const ok = window.confirm(
-    "本当に、このファンクラブの全投稿を一括で非公開にしますか？"
-  );
-  if (!ok) return;
-  const rate = Math.max(0, Math.min(60, Number(rateInput.value) || 0));
-  await fapi.startUnpublish(rate);
-});
-btnRepublish.addEventListener("click", async () => {
-  const ok = window.confirm(
-    `このツールで非公開にした ${historyCount} 件を公開状態に戻します。よろしいですか？`
-  );
-  if (!ok) return;
-  const rate = Math.max(0, Math.min(60, Number(rateInput.value) || 0));
-  await fapi.startRepublish(rate);
-});
-btnRepublishAll.addEventListener("click", async () => {
-  const ok = window.confirm(
-    "現在「非公開」状態のすべての投稿を公開に戻します。\n元々非公開だったものも含めて公開されます。よろしいですか？"
-  );
-  if (!ok) return;
-  const rate = Math.max(0, Math.min(60, Number(rateInput.value) || 0));
-  await fapi.startRepublishAll(rate);
-});
-btnAbort.addEventListener("click", () => {
-  void fapi.abort();
 });
 btnClearHistory.addEventListener("click", async () => {
   const ok = window.confirm(
@@ -143,19 +216,33 @@ fapi.onCompleted((e) => {
   window.alert(e.message);
 });
 fapi.onState((s) => {
+  const wasRunning = running;
   running = s.running;
   historyCount = s.historyCount;
+  if (wasRunning && !running) {
+    if (runningKind) resetButton(runningKind);
+    runningKind = null;
+    abortInFlight = false;
+  }
   applyUiState();
 });
 fapi.onProgress((p) => {
+  if (!runningKind) return;
   if (p.total <= 0) {
-    progressFill.style.width = "0";
-    progressText.textContent = "待機中";
+    setButtonFill(runningKind, 0);
+    if (!abortInFlight) {
+      setButtonLabel(runningKind, "準備中… (もう一度押すと中断)");
+    }
     return;
   }
   const pct = Math.round((p.current / p.total) * 100);
-  progressFill.style.width = `${pct}%`;
-  progressText.textContent = `${p.current} / ${p.total} (${pct}%) — ${p.label}`;
+  setButtonFill(runningKind, pct);
+  if (!abortInFlight) {
+    setButtonLabel(
+      runningKind,
+      `${p.current} / ${p.total} (${pct}%) — もう一度押すと中断`
+    );
+  }
 });
 
 void refreshState();
