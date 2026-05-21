@@ -18,12 +18,12 @@ export interface StateEntry {
 }
 
 contextBridge.exposeInMainWorld("api", {
-  startUnpublish: (rateSeconds: number) =>
-    ipcRenderer.invoke("start-unpublish", rateSeconds),
+  startUnpublish: (rateSeconds: number, adultOnly: boolean) =>
+    ipcRenderer.invoke("start-unpublish", rateSeconds, adultOnly),
   startRepublish: (rateSeconds: number) =>
     ipcRenderer.invoke("start-republish", rateSeconds),
-  startRepublishAll: (rateSeconds: number) =>
-    ipcRenderer.invoke("start-republish-all", rateSeconds),
+  startRepublishAll: (rateSeconds: number, adultOnly: boolean) =>
+    ipcRenderer.invoke("start-republish-all", rateSeconds, adultOnly),
   abort: () => ipcRenderer.invoke("abort"),
   getState: () => ipcRenderer.invoke("get-state"),
   clearHistory: () => ipcRenderer.invoke("clear-history"),

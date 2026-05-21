@@ -228,12 +228,17 @@ async function waitForSelector(sel: string, timeoutMs = 15000): Promise<boolean>
 
 async function collectPostIds(
   baseUrl: string,
-  label: string
+  label: string,
+  adultOnly: boolean
 ): Promise<string[]> {
   if (!fantiaWindow) return [];
-  emit("info", `${label}の投稿一覧を取得します...`);
+  emit(
+    "info",
+    `${label}の投稿一覧を取得します... (R18 のみ: ${adultOnly ? "ON" : "OFF"})`
+  );
   const all = new Set<string>();
   let page = 1;
+  let totalSkipped = 0;
   while (true) {
     if (abortRequested) break;
     const url = page === 1 ? baseUrl : `${baseUrl}&page=${page}`;
@@ -246,38 +251,81 @@ async function collectPostIds(
     const ok = await waitForSelector("body", 10000);
     if (!ok) break;
     await sleep(600);
-    const ids = (await fantiaWindow.webContents.executeJavaScript(`
+    const result = (await fantiaWindow.webContents.executeJavaScript(`
       (() => {
+        const adultOnly = ${adultOnly ? "true" : "false"};
+        const found = [];
+        const skipped = [];
         const seen = new Set();
+
+        function findCard(linkEl, postId) {
+          let current = linkEl;
+          let last = linkEl;
+          while (current.parentElement) {
+            current = current.parentElement;
+            if (current.tagName === 'BODY') break;
+            const childLinks = current.querySelectorAll('a[href*="/posts/"]');
+            let otherCount = 0;
+            for (const a of childLinks) {
+              const m = a.href.match(/\\/posts\\/(\\d+)/);
+              if (!m) continue;
+              if (/\\/posts\\/new/.test(a.href)) continue;
+              if (m[1] !== postId) otherCount++;
+            }
+            if (otherCount > 0) break;
+            last = current;
+          }
+          return last;
+        }
+
         const links = Array.from(document.querySelectorAll('a[href*="/posts/"]'));
         for (const a of links) {
           if (!/\\/posts\\/\\d+/.test(a.href)) continue;
           if (/\\/posts\\/new/.test(a.href)) continue;
           const m = a.href.match(/\\/posts\\/(\\d+)/);
           if (!m) continue;
-          seen.add(m[1]);
+          const id = m[1];
+          if (seen.has(id)) continue;
+          seen.add(id);
+          if (adultOnly) {
+            const card = findCard(a, id);
+            const text = (card.innerText || '') + ' ' + (card.textContent || '');
+            const isAdult = /18\\+|R-?18|アダルト|成人/i.test(text);
+            if (!isAdult) {
+              skipped.push(id);
+              continue;
+            }
+          }
+          found.push(id);
         }
-        return Array.from(seen);
+        return { found, skipped };
       })()
-    `)) as string[];
-    if (!ids.length) {
+    `)) as { found: string[]; skipped: string[] };
+    const ids = result.found;
+    const pageSkipped = result.skipped.length;
+    totalSkipped += pageSkipped;
+    if (!ids.length && !pageSkipped) {
       emit("info", `  page ${page}: 0 件 (終了)`);
       break;
     }
     const before = all.size;
     for (const id of ids) all.add(id);
     const added = all.size - before;
+    const skipMsg = pageSkipped > 0 ? ` (除外 ${pageSkipped} 件)` : "";
     emit(
       "info",
-      `  page ${page}: ${ids.length} 件 (新規 ${added} 件 / 累積 ${all.size} 件)`
+      `  page ${page}: ${ids.length} 件${skipMsg} (新規 ${added} 件 / 累積 ${all.size} 件)`
     );
-    if (added === 0) break;
+    if (added === 0 && pageSkipped === 0) break;
     page++;
     if (page > 200) {
       emit("warn", "ページ上限に到達 (200)");
       break;
     }
     await sleep(400);
+  }
+  if (adultOnly && totalSkipped > 0) {
+    emit("info", `R18 フィルタにより ${totalSkipped} 件を対象外にしました`);
   }
   return Array.from(all);
 }
@@ -404,7 +452,10 @@ function waitForNavigation(timeoutMs = 15000): Promise<string | null> {
   });
 }
 
-async function runUnpublishAll(rateSeconds: number): Promise<void> {
+async function runUnpublishAll(
+  rateSeconds: number,
+  adultOnly: boolean
+): Promise<void> {
   if (running) {
     emit("warn", "すでに実行中です");
     return;
@@ -413,10 +464,15 @@ async function runUnpublishAll(rateSeconds: number): Promise<void> {
   abortRequested = false;
   emitState();
   try {
-    const targets = await collectPostIds(FANTIA_POSTS_LIST_OPEN, "公開中");
+    const targets = await collectPostIds(
+      FANTIA_POSTS_LIST_OPEN,
+      "公開中",
+      adultOnly
+    );
     if (!targets.length) {
-      const msg =
-        "公開中の投稿が見つかりませんでした。\nFantia にログイン (年齢確認も) しているか、公開中の投稿があるか確認してください。";
+      const msg = adultOnly
+        ? "対象となる R18 投稿が見つかりませんでした。\nR18 (18+) フィルタを OFF にすると全年齢投稿も対象にできます。"
+        : "公開中の投稿が見つかりませんでした。\nFantia にログイン (年齢確認も) しているか、公開中の投稿があるか確認してください。";
       emit("warn", msg);
       emitCompleted(msg);
       return;
@@ -534,7 +590,10 @@ async function runRepublishFromHistory(rateSeconds: number): Promise<void> {
   }
 }
 
-async function runRepublishAllClosed(rateSeconds: number): Promise<void> {
+async function runRepublishAllClosed(
+  rateSeconds: number,
+  adultOnly: boolean
+): Promise<void> {
   if (running) {
     emit("warn", "すでに実行中です");
     return;
@@ -543,10 +602,15 @@ async function runRepublishAllClosed(rateSeconds: number): Promise<void> {
   abortRequested = false;
   emitState();
   try {
-    const targets = await collectPostIds(FANTIA_POSTS_LIST_CLOSED, "非公開");
+    const targets = await collectPostIds(
+      FANTIA_POSTS_LIST_CLOSED,
+      "非公開",
+      adultOnly
+    );
     if (!targets.length) {
-      const msg =
-        "非公開の投稿が見つかりませんでした。\nFantia にログイン (年齢確認も) しているか、非公開の投稿があるか確認してください。";
+      const msg = adultOnly
+        ? "対象となる R18 の非公開投稿が見つかりませんでした。\nR18 (18+) フィルタを OFF にすると全年齢投稿も対象にできます。"
+        : "非公開の投稿が見つかりませんでした。\nFantia にログイン (年齢確認も) しているか、非公開の投稿があるか確認してください。";
       emit("warn", msg);
       emitCompleted(msg);
       return;
@@ -621,18 +685,24 @@ async function exportHistoryCsv(): Promise<{ ok: boolean; reason?: string }> {
 }
 
 function registerIpc(): void {
-  ipcMain.handle("start-unpublish", async (_e, rateSeconds: number) => {
-    void runUnpublishAll(rateSeconds);
-    return { ok: true };
-  });
+  ipcMain.handle(
+    "start-unpublish",
+    async (_e, rateSeconds: number, adultOnly: boolean) => {
+      void runUnpublishAll(rateSeconds, adultOnly);
+      return { ok: true };
+    }
+  );
   ipcMain.handle("start-republish", async (_e, rateSeconds: number) => {
     void runRepublishFromHistory(rateSeconds);
     return { ok: true };
   });
-  ipcMain.handle("start-republish-all", async (_e, rateSeconds: number) => {
-    void runRepublishAllClosed(rateSeconds);
-    return { ok: true };
-  });
+  ipcMain.handle(
+    "start-republish-all",
+    async (_e, rateSeconds: number, adultOnly: boolean) => {
+      void runRepublishAllClosed(rateSeconds, adultOnly);
+      return { ok: true };
+    }
+  );
   ipcMain.handle("abort", async () => {
     if (running) abortRequested = true;
     return { ok: true };

@@ -16,9 +16,12 @@ interface StateEntry {
   historyCount: number;
 }
 interface FantiaApi {
-  startUnpublish: (r: number) => Promise<{ ok: boolean }>;
+  startUnpublish: (r: number, adultOnly: boolean) => Promise<{ ok: boolean }>;
   startRepublish: (r: number) => Promise<{ ok: boolean }>;
-  startRepublishAll: (r: number) => Promise<{ ok: boolean }>;
+  startRepublishAll: (
+    r: number,
+    adultOnly: boolean
+  ) => Promise<{ ok: boolean }>;
   abort: () => Promise<{ ok: boolean }>;
   getState: () => Promise<StateEntry>;
   clearHistory: () => Promise<{ ok: boolean }>;
@@ -36,6 +39,7 @@ const $ = <T extends HTMLElement>(id: string): T =>
 
 const btnNavLogin = $<HTMLButtonElement>("btnNavLogin");
 const rateInput = $<HTMLInputElement>("rateInput");
+const adultOnlyInput = $<HTMLInputElement>("adultOnlyInput");
 const btnUnpublish = $<HTMLButtonElement>("btnUnpublish");
 const btnRepublish = $<HTMLButtonElement>("btnRepublish");
 const btnRepublishAll = $<HTMLButtonElement>("btnRepublishAll");
@@ -64,9 +68,11 @@ const actions: Record<ActionKind, ActionDef> = {
     btn: btnUnpublish,
     defaultLabel: "すべての投稿を非公開にする",
     withBadge: false,
-    start: () => fapi.startUnpublish(getRate()),
+    start: () => fapi.startUnpublish(getRate(), getAdultOnly()),
     confirmMessage: () =>
-      "本当に、このファンクラブの全投稿を一括で非公開にしますか？",
+      getAdultOnly()
+        ? "公開中の R18 投稿を一括で非公開にします。よろしいですか？"
+        : "公開中のすべての投稿 (R18 以外も含む) を一括で非公開にします。本当によろしいですか？",
   },
   republish: {
     btn: btnRepublish,
@@ -80,14 +86,20 @@ const actions: Record<ActionKind, ActionDef> = {
     btn: btnRepublishAll,
     defaultLabel: "非公開のものを全部公開する",
     withBadge: false,
-    start: () => fapi.startRepublishAll(getRate()),
+    start: () => fapi.startRepublishAll(getRate(), getAdultOnly()),
     confirmMessage: () =>
-      "現在「非公開」状態のすべての投稿を公開に戻します。\n元々非公開だったものも含めて公開されます。よろしいですか？",
+      getAdultOnly()
+        ? "現在「非公開」状態の R18 投稿を公開に戻します。よろしいですか？"
+        : "現在「非公開」状態のすべての投稿 (R18 以外も含む) を公開に戻します。\n元々非公開だったものも含めて公開されます。よろしいですか？",
   },
 };
 
 function getRate(): number {
   return Math.max(0, Math.min(60, Number(rateInput.value) || 0));
+}
+
+function getAdultOnly(): boolean {
+  return adultOnlyInput.checked;
 }
 
 function fmtTime(ts: number): string {
