@@ -590,10 +590,7 @@ async function runRepublishFromHistory(rateSeconds: number): Promise<void> {
   }
 }
 
-async function runRepublishAllClosed(
-  rateSeconds: number,
-  adultOnly: boolean
-): Promise<void> {
+async function runRepublishAllClosed(rateSeconds: number): Promise<void> {
   if (running) {
     emit("warn", "すでに実行中です");
     return;
@@ -605,12 +602,11 @@ async function runRepublishAllClosed(
     const targets = await collectPostIds(
       FANTIA_POSTS_LIST_CLOSED,
       "非公開",
-      adultOnly
+      false
     );
     if (!targets.length) {
-      const msg = adultOnly
-        ? "対象となる R18 の非公開投稿が見つかりませんでした。\nR18 (18+) フィルタを OFF にすると全年齢投稿も対象にできます。"
-        : "非公開の投稿が見つかりませんでした。\nFantia にログイン (年齢確認も) しているか、非公開の投稿があるか確認してください。";
+      const msg =
+        "非公開の投稿が見つかりませんでした。\nFantia にログイン (年齢確認も) しているか、非公開の投稿があるか確認してください。";
       emit("warn", msg);
       emitCompleted(msg);
       return;
@@ -698,8 +694,8 @@ function registerIpc(): void {
   });
   ipcMain.handle(
     "start-republish-all",
-    async (_e, rateSeconds: number, adultOnly: boolean) => {
-      void runRepublishAllClosed(rateSeconds, adultOnly);
+    async (_e, rateSeconds: number) => {
+      void runRepublishAllClosed(rateSeconds);
       return { ok: true };
     }
   );
@@ -727,12 +723,24 @@ function registerIpc(): void {
   });
 }
 
-app.whenReady().then(async () => {
-  registerIpc();
-  await createWindows();
-  emitState();
-});
-
-app.on("window-all-closed", () => {
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
   app.quit();
-});
+} else {
+  app.on("second-instance", () => {
+    if (controlWindow && !controlWindow.isDestroyed()) {
+      if (controlWindow.isMinimized()) controlWindow.restore();
+      controlWindow.focus();
+    }
+  });
+
+  app.whenReady().then(async () => {
+    registerIpc();
+    await createWindows();
+    emitState();
+  });
+
+  app.on("window-all-closed", () => {
+    app.quit();
+  });
+}

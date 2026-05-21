@@ -48,49 +48,42 @@
         Fantia への負荷を避けるための間隔です。
       </p>
 
-      <div class="row">
-        <label class="check">
-          <input type="checkbox" id="adultOnlyInput" checked />
-          R18 (18+) の投稿のみを対象にする
-        </label>
-      </div>
-      <p class="hint">
-        オフにすると全年齢投稿も対象になります。通常は ON のままで OK です。
-      </p>
-
       <div class="action-block">
         <p class="desc">
           <strong>すべての投稿を非公開にする</strong><br>
           非公開化した投稿は記録され、あとから元に戻せます。
         </p>
+        <div class="row r18-row">
+          <label class="check">
+            <input type="checkbox" id="adultOnlyInput" checked />
+            R18 の投稿のみを対象にする
+          </label>
+        </div>
         <button id="btnUnpublish" class="action-btn danger">
           <span class="action-fill"></span>
-          <span class="action-label">すべての投稿を非公開にする</span>
+          <span class="action-label"></span>
         </button>
       </div>
 
       <div class="action-block">
         <p class="desc">
           <strong>このツールで非公開にしたものを再公開する</strong><br>
-          このツールで非公開にしたものだけを対象に再公開します。
+          このツールで非公開にしたものだけを再公開します。
         </p>
         <button id="btnRepublish" class="action-btn primary" disabled>
           <span class="action-fill"></span>
-          <span class="action-label">
-            このツールで非公開にしたものを再公開する
-            <span class="badge" id="historyBadge">0</span>
-          </span>
+          <span class="action-label"></span>
         </button>
       </div>
 
       <div class="action-block">
         <p class="desc">
-          <strong>すべての投稿を公開する</strong><br>
-          元々非公開だったものも含めて全部公開します。
+          <strong>非公開の投稿を公開する</strong><br>
+          現在非公開のすべての投稿を公開に戻します。元々非公開だったものも含まれます。
         </p>
         <button id="btnRepublishAll" class="action-btn warning">
           <span class="action-fill"></span>
-          <span class="action-label">すべての投稿を公開する</span>
+          <span class="action-label"></span>
         </button>
       </div>
 

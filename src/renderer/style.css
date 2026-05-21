@@ -210,6 +210,9 @@ button.secondary {
   color: var(--muted);
   line-height: 1.5;
 }
+.action-block .r18-row {
+  margin: 0 0 10px;
+}
 .subactions {
   display: flex;
   gap: 8px;

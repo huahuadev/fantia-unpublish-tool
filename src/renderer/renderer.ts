@@ -18,10 +18,7 @@ interface StateEntry {
 interface FantiaApi {
   startUnpublish: (r: number, adultOnly: boolean) => Promise<{ ok: boolean }>;
   startRepublish: (r: number) => Promise<{ ok: boolean }>;
-  startRepublishAll: (
-    r: number,
-    adultOnly: boolean
-  ) => Promise<{ ok: boolean }>;
+  startRepublishAll: (r: number) => Promise<{ ok: boolean }>;
   abort: () => Promise<{ ok: boolean }>;
   getState: () => Promise<StateEntry>;
   clearHistory: () => Promise<{ ok: boolean }>;
@@ -52,7 +49,6 @@ type ActionKind = "unpublish" | "republish" | "republish-all";
 
 interface ActionDef {
   btn: HTMLButtonElement;
-  defaultLabel: string;
   withBadge: boolean;
   start: () => Promise<{ ok: boolean }>;
   confirmMessage: () => string;
@@ -63,10 +59,22 @@ let historyCount = 0;
 let runningKind: ActionKind | null = null;
 let abortInFlight = false;
 
+function getActionTitle(kind: ActionKind): string {
+  switch (kind) {
+    case "unpublish":
+      return getAdultOnly()
+        ? "R18 のみ非公開にする"
+        : "全年齢を含む全てを非公開にする";
+    case "republish":
+      return "このツールで非公開にしたものを再公開する";
+    case "republish-all":
+      return "非公開の投稿を公開する";
+  }
+}
+
 const actions: Record<ActionKind, ActionDef> = {
   unpublish: {
     btn: btnUnpublish,
-    defaultLabel: "すべての投稿を非公開にする",
     withBadge: false,
     start: () => fapi.startUnpublish(getRate(), getAdultOnly()),
     confirmMessage: () =>
@@ -76,7 +84,6 @@ const actions: Record<ActionKind, ActionDef> = {
   },
   republish: {
     btn: btnRepublish,
-    defaultLabel: "このツールで非公開にしたものを公開する",
     withBadge: true,
     start: () => fapi.startRepublish(getRate()),
     confirmMessage: () =>
@@ -84,13 +91,10 @@ const actions: Record<ActionKind, ActionDef> = {
   },
   "republish-all": {
     btn: btnRepublishAll,
-    defaultLabel: "非公開のものを全部公開する",
     withBadge: false,
-    start: () => fapi.startRepublishAll(getRate(), getAdultOnly()),
+    start: () => fapi.startRepublishAll(getRate()),
     confirmMessage: () =>
-      getAdultOnly()
-        ? "現在「非公開」状態の R18 投稿を公開に戻します。よろしいですか？"
-        : "現在「非公開」状態のすべての投稿 (R18 以外も含む) を公開に戻します。\n元々非公開だったものも含めて公開されます。よろしいですか？",
+      "現在「非公開」状態のすべての投稿を公開に戻します。\n元々非公開だったものも含めて公開されます。よろしいですか？",
   },
 };
 
@@ -143,7 +147,7 @@ function setButtonFill(kind: ActionKind, pct: number): void {
 
 function resetButton(kind: ActionKind): void {
   setButtonFill(kind, 0);
-  setButtonLabel(kind, actions[kind].defaultLabel);
+  setButtonLabel(kind, getActionTitle(kind));
   actions[kind].btn.classList.remove("running");
 }
 
@@ -161,7 +165,7 @@ function applyUiState(): void {
       def.btn.disabled = disabled;
       if (!running) {
         setButtonFill(k, 0);
-        setButtonLabel(k, def.defaultLabel);
+        setButtonLabel(k, getActionTitle(k));
       }
     }
   }
@@ -204,6 +208,16 @@ function attachActionHandler(kind: ActionKind): void {
     await def.start();
   });
 }
+
+function refreshButtonLabels(): void {
+  if (running) return;
+  for (const k of Object.keys(actions) as ActionKind[]) {
+    setButtonLabel(k, getActionTitle(k));
+  }
+}
+
+adultOnlyInput.addEventListener("change", refreshButtonLabels);
+refreshButtonLabels();
 
 attachActionHandler("unpublish");
 attachActionHandler("republish");

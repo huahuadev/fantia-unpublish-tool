@@ -1,6 +1,6 @@
 {
   "name": "fantia-unpublish-tool",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Fantia の自分の投稿を一括で非公開化／再公開できる Electron アプリ",
   "main": "dist/main.js",
   "author": "",

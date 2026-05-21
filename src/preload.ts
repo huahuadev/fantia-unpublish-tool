@@ -22,8 +22,8 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("start-unpublish", rateSeconds, adultOnly),
   startRepublish: (rateSeconds: number) =>
     ipcRenderer.invoke("start-republish", rateSeconds),
-  startRepublishAll: (rateSeconds: number, adultOnly: boolean) =>
-    ipcRenderer.invoke("start-republish-all", rateSeconds, adultOnly),
+  startRepublishAll: (rateSeconds: number) =>
+    ipcRenderer.invoke("start-republish-all", rateSeconds),
   abort: () => ipcRenderer.invoke("abort"),
   getState: () => ipcRenderer.invoke("get-state"),
   clearHistory: () => ipcRenderer.invoke("clear-history"),
